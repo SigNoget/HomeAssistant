@@ -1,62 +1,95 @@
 blueprint:
-  name: LK Wiser Batteritryk
-  author: Sean Rasmussen
-  description: Lav automationer for LK Wiser trådløs batteritryk 4-knaps som ZHA.
+  name: LK Wiser 4-knaps – gardin og lys (ZHA)
+  description: >
+    Styr gardin med øverste knapper (tryk = kør, tryk igen = stop) og lys med nederste knapper
+    (tænd/sluk + hold for dim op/ned) for LK Wiser 4-knaps batteritryk via ZHA.
   domain: automation
+  author: SigNoget
+  source_url: https://github.com/SigNoget/HomeAssistant/blob/main/lk-wiser-batteritryk.yaml
 
   input:
     zigbee_device:
-      name: Zigbee Device
-      description: LK Wiser batteritryk
+      name: LK Wiser 4-knaps tryk (ZHA)
+      description: Vælg dit LK Wiser batteritryk (ZHA-enhed).
       selector:
         device:
           integration: zha
           manufacturer: Schneider Electric
 
-    top_left_action:
-      name: Top Left Button Action
-      description: Action for øverst venstre knap (endpoint 21, "on")
-      default: []
+    cover_entity:
+      name: Gardin
+      description: Gardin/cover der styres af de øverste knapper.
       selector:
-        action: {}
+        entity:
+          domain: cover
 
-    top_right_action:
-      name: Top Right Button Action
-      description: Action for øverst højre knap (endpoint 21, "off")
-      default: []
+    light_entity:
+      name: Lys
+      description: Lys der styres af de nederste knapper.
       selector:
-        action: {}
+        entity:
+          domain: light
 
-    bottom_left_action:
-      name: Bottom Left Button Action
-      description: Action for nederste venstre knap (endpoint 22, "on")
-      default: []
+    brightness_step_up:
+      name: Dimming op – step-størrelse
+      description: >
+        Hvor meget lysstyrken ændres pr. dim-trin når der dæmpes op.
+        Ca. 50–80 er normalt. Højere = hurtigere dim.
+      default: 60
       selector:
-        action: {}
+        number:
+          min: 1
+          max: 255
+          mode: box
 
-    bottom_right_action:
-      name: Bottom Right Button Action
-      description: Action for nederste højre knap (endpoint 22, "off")
-      default: []
+    brightness_step_down:
+      name: Dimming ned – step-størrelse
+      description: >
+        Hvor meget lysstyrken ændres pr. dim-trin når der dæmpes ned.
+        Ca. 50–80 er normalt. Højere = hurtigere dim.
+      default: 60
       selector:
-        action: {}
+        number:
+          min: 1
+          max: 255
+          mode: box
 
-    top_left_hold_action:
-      name: Top Left Hold Action
-      description: Hold Action for øverst venstre knap (endpoint 21, move_with_on_off)
-      default: []
+    transition_time:
+      name: Transitiontid for dimming
+      description: >
+        Hvor glidende dimming skal være (i sekunder).
+        Lav værdi = hurtig/reaktiv, høj værdi = mere glidende.
+      default: 0.5
       selector:
-        action: {}
+        number:
+          min: 0
+          max: 5
+          step: 0.1
+          mode: box
 
-    bottom_left_hold_action:
-      name: Bottom Left Hold Action
-      description: Hold Action for nederste venstre knap (endpoint 22, move)
-      default: []
+    debug_mode:
+      name: Debug-log
+      description: >
+        Hvis aktiveret, logger automations-trigger events til logbook/service_log for fejlfinding.
+      default: false
       selector:
-        action: {}
+        boolean: {}
 
 mode: restart
 max_exceeded: silent
+
+variables:
+  v_debug: !input debug_mode
+  v_cover: !input cover_entity
+  v_light: !input light_entity
+  v_step_up: !input brightness_step_up
+  v_step_down: !input brightness_step_down
+  v_transition: !input transition_time
+
+  v_command: >
+    {{ trigger.event.data.command if trigger is not none else '' }}
+  v_endpoint: >
+    {{ trigger.event.data.endpoint_id if trigger is not none else 0 }}
 
 trigger:
   - platform: event
@@ -65,53 +98,134 @@ trigger:
       device_id: !input zigbee_device
 
 action:
-  choose:
+  - if:
+      - condition: template
+        value_template: "{{ v_debug }}"
+    then:
+      - service: logbook.log
+        data:
+          name: "LK Wiser 4-knaps"
+          message: >
+            Triggered with endpoint={{ v_endpoint }}, command={{ v_command }},
+            args={{ trigger.event.data.args }}
+          entity_id: "{{ v_light }}"
 
-    # --- TOP LEFT (endpoint 21, "on") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 21 and trigger.event.data.command == "on" }}
-      sequence: !input top_left_action
+  - choose:
 
-    # --- TOP RIGHT (endpoint 21, "off") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 21 and trigger.event.data.command == "off" }}
-      sequence: !input top_right_action
+      # -------------------------------------------------------------------
+      # ØVERSTE KNAPPER – GARDIN (endpoint 21, on/off)
+      # -------------------------------------------------------------------
 
-    # --- BOTTOM LEFT (endpoint 22, "on") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 22 and trigger.event.data.command == "on" }}
-      sequence: !input bottom_left_action
+      # Top venstre: ÅBN / STOP
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_endpoint == 21 and v_command == 'on' }}
+        sequence:
+          - choose:
+              # Hvis gardin allerede bevæger sig → STOP
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_entity
+                    state: "opening"
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: "{{ v_cover }}"
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_entity
+                    state: "closing"
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: "{{ v_cover }}"
+            default:
+              # Ellers: start med at åbne
+              - service: cover.open_cover
+                target:
+                  entity_id: "{{ v_cover }}"
 
-    # --- BOTTOM RIGHT (endpoint 22, "off") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 22 and trigger.event.data.command == "off" }}
-      sequence: !input bottom_right_action
+      # Top højre: LUK / STOP
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_endpoint == 21 and v_command == 'off' }}
+        sequence:
+          - choose:
+              # Hvis gardin allerede bevæger sig → STOP
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_entity
+                    state: "opening"
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: "{{ v_cover }}"
+              - conditions:
+                  - condition: state
+                    entity_id: !input cover_entity
+                    state: "closing"
+                sequence:
+                  - service: cover.stop_cover
+                    target:
+                      entity_id: "{{ v_cover }}"
+            default:
+              # Ellers: start med at lukke
+              - service: cover.close_cover
+                target:
+                  entity_id: "{{ v_cover }}"
 
-    # --- TOP LEFT HOLD (endpoint 21, "move_with_on_off") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 21 and trigger.event.data.command == "move_with_on_off" }}
-      sequence: !input top_left_hold_action
+      # -------------------------------------------------------------------
+      # NEDERSTE KNAPPER – LYS (endpoint 22, on/off/move/stop)
+      # -------------------------------------------------------------------
 
-    # --- BOTTOM LEFT HOLD (endpoint 22, "move") ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.endpoint_id == 22 and trigger.event.data.command == "move" }}
-      sequence: !input bottom_left_hold_action
+      # Nederste venstre kort tryk: TÆND
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_endpoint == 22 and v_command == 'on' }}
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: "{{ v_light }}"
 
-    # --- STOP COMMAND (stop hold actions) ---
-    - conditions:
-        - condition: template
-          value_template: >
-            {{ trigger.event.data.command == "stop" }}
-      sequence: []
+      # Nederste højre kort tryk: SLUK
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_endpoint == 22 and v_command == 'off' }}
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: "{{ v_light }}"
+
+      # Nederste venstre HOLD: DIM OP (bruges selvom lyset er slukket)
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_endpoint == 22 and v_command == 'move' }}
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: "{{ v_light }}"
+            data:
+              brightness_step: "{{ v_step_up | int }}"
+              transition: "{{ v_transition | float }}"
+
+      # Nederste knapper SLIP: STOP DIM
+      # Enheden sender 'stop' fra samme endpoint som hold-kommandien.
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ v_command == 'stop' and v_endpoint == 22 }}
+        sequence:
+          # "Stop"-tricket: et neutralt kald der stopper igangværende transition
+          - service: light.turn_on
+            target:
+              entity_id: "{{ v_light }}"
+            data:
+              brightness_step: 0
+              transition: 0
+
+  # Ingen default: andre commands ignoreres
