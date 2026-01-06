@@ -43,14 +43,14 @@ blueprint:
 
     top_left_hold_action:
       name: Top Left Hold Action
-      description: Hold Action for øverst venstre knap (endpoint 21, "move_with_on_off")
+      description: Hold Action for øverst venstre knap (endpoint 21, move_with_on_off)
       default: []
       selector:
         action: {}
 
     bottom_left_hold_action:
       name: Bottom Left Hold Action
-      description: Hold Action for nederste venstre knap (endpoint 22, "move")
+      description: Hold Action for nederste venstre knap (endpoint 22, move)
       default: []
       selector:
         action: {}
