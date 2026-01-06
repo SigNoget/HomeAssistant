@@ -109,10 +109,9 @@ action:
             {{ trigger.event.data.endpoint_id == 22 and trigger.event.data.command == "move" }}
       sequence: !input bottom_left_hold_action
 
-  # STOP HANDLING FOR BOTH HOLD ACTIONS
-  - choose:
-      - conditions:
-          - condition: template
-            value_template: >
-              {{ trigger.event.data.command == "stop" }}
-        sequence: []
+    # --- STOP COMMAND (stop hold actions) ---
+    - conditions:
+        - condition: template
+          value_template: >
+            {{ trigger.event.data.command == "stop" }}
+      sequence: []
