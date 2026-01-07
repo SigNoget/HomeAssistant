@@ -1,7 +1,7 @@
 blueprint:
   name: LK Wiser 4-knaps – gardin + glidende lysdimming (ZHA)
   description: >
-    Version 0.8.2: 2026-01-07 07:39  
+    Version 0.8.3: 2026-01-07 07:43 
     Styr gardin med øverste knapper (tryk = kør, tryk igen = stop)
     og lys med nederste knapper (tænd/sluk + glidende dim op/ned ved hold).
   domain: automation
