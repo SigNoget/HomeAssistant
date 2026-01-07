@@ -1,6 +1,7 @@
 blueprint:
   name: LK Wiser 4-knaps – gardin og lys (ZHA)
   description: >
+    Version 0.8: 2026-01-07 07:21  
     Styr gardin med øverste knapper (tryk = kør, tryk igen = stop) og lys med nederste knapper
     (tænd/sluk + hold for dim op/ned) for LK Wiser 4-knaps batteritryk via ZHA.
   domain: automation
