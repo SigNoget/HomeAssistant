@@ -1,7 +1,7 @@
 blueprint:
   name: LK Wiser Batteritryk (Gardin + Lys) (ZHA)
   description: |
-    Version: 0.9.2 – 2026-01-07:
+    Version: 1.0 – 2026-01-07:
     - Øverste knapper styrer gardin. Kort tryk ÅBN/LUK | Langt tryk STOP.
     - Nederste knapper styrer lys. Kort tryk TÆND/SLUK | Langt tryk DIM OP/NED.
   domain: automation
@@ -14,7 +14,7 @@ blueprint:
     ############################################################
 
     zigbee_device:
-      name: Wiser Batteritryk 4-slutte
+      name: Wiser Batteritryk
       selector:
         device:
           integration: zha
